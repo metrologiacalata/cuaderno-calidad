@@ -8,6 +8,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="manifest" href="manifest.json" />
   <title>Cuaderno de Registro</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root{
       font-family: system-ui, Segoe UI, Roboto, Arial;
@@ -429,7 +430,36 @@
       .topBar .topTitle{ font-weight:700; }
     }
     @media (prefers-reduced-motion: reduce){ .sidebar{ transition:none; } }
+    /* ========= INICIO DE SESIÓN ========= */
+    .loginScreen{
+      position: fixed; inset: 0; z-index: 20000;
+      background: var(--bg);
+      display: none; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .loginScreen.show{ display: flex; }
+    .loginCard{
+      width: 100%; max-width: 380px; box-sizing: border-box;
+      background: var(--card);
+      border: 1px solid rgba(0,0,0,.35);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      padding: 28px 22px;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      text-align: center;
+    }
+    .loginCard .logo{ height: 80px; }
+    .loginCard h1{ margin: 4px 0 0; font-size: 19px; }
+    .gBtn{ min-height: 44px; display:flex; justify-content:center; }
+    .loginMsg{ font-size: 13px; }
+    .loginMsg:not(:empty){
+      background: var(--surface); color: var(--text);
+      border-radius: 12px; padding: 8px 12px;
+    }
+    .userEmail{ font-size: 12px; color: rgba(255,255,255,.85); word-break: break-all; padding: 0 4px; }
+
     /* ========= PARETO ========= */
+    @media (min-width: 640px){ .filters.filters3{ grid-template-columns: 1fr 1fr auto; } }
     .paretoRow{ display:grid; grid-template-columns: 1fr; gap:12px; margin-top:10px; }
     @media (min-width: 640px){ .paretoRow{ grid-template-columns: 1fr 1fr; } }
     .chartCard{
@@ -466,6 +496,8 @@
     <button class="btn navBtn" data-tab="tabPareto">📊 Pareto</button>
 
     <div class="sideFoot">
+      <div id="userEmail" class="userEmail"></div>
+      <button id="btnLogout" class="btn">🚪 Cerrar sesión</button>
       <button id="btnInstall" class="btn" style="display:none;">⬇️ Instalar app</button>
     </div>
   </aside>
@@ -602,7 +634,7 @@
           <div class="sectionTitle"><h1>📊 Pareto de incidencias</h1></div>
           <div class="muted">Las barras muestran cuántas veces aparece cada uno; la línea, el % acumulado sobre el total.</div>
 
-          <div class="filters">
+          <div class="filters filters3">
             <div>
               <label>Desde</label>
               <input id="pDesde" type="date" />
@@ -610,10 +642,6 @@
             <div>
               <label>Hasta</label>
               <input id="pHasta" type="date" />
-            </div>
-            <div>
-              <label>Máquina</label>
-              <select id="pMaquina"></select>
             </div>
             <div>
               <button id="btnParetoRefresh" class="btn">🔄 Actualizar</button>
@@ -628,7 +656,7 @@
               <div id="paretoMotivos"></div>
             </div>
             <div class="chartCard">
-              <h3>Top 5 referencias (máquina · referencia)</h3>
+              <h3>Top 5 referencias</h3>
               <div id="paretoRefs"></div>
             </div>
           </div>
@@ -659,12 +687,23 @@
 
 <div id="msg" class="toast toastFixed" style="display:none;"></div>
 
+<!-- ========= INICIO DE SESIÓN ========= -->
+<div id="loginScreen" class="loginScreen show">
+  <div class="loginCard">
+    <img src="logo.png" alt="SIGIT" class="logo" />
+    <h1>📓 Cuaderno de Registro Calidad</h1>
+    <div class="muted">Entra con tu cuenta de Google.</div>
+    <div id="gBtn" class="gBtn"></div>
+    <div id="loginMsg" class="loginMsg">Cargando…</div>
+  </div>
+</div>
+
 <script>
 /** ==========================
  *  CONEXIÓN CON APPS SCRIPT  ⬅️ RELLENA ESTO
  *  ========================== */
 const API_URL = "https://script.google.com/macros/s/AKfycbyeIHu_y9h_dkYUukRydhiEVc5KemfoFwNwDdK3_jMzgZpm2L6xNsVlcqLmsmO618fFqw/exec";
-// La clave de acceso NO va aquí: la app la pide la primera vez y la recuerda en la tablet.
+// El acceso se hace con la cuenta de Google (ver GOOGLE_CLIENT_ID en Código.gs).
 
 /** ==========================
  *  ESTADO Y UTILIDADES
@@ -674,43 +713,38 @@ let REGISTROS = []; // grupos fecha+turno (sin imágenes)
 
 const $ = (id) => document.getElementById(id);
 
-/** Clave de acceso: se pide una vez y se guarda en el dispositivo */
-const TOKEN_KEY = "cuaderno_token";
-function readToken(){ try{ return localStorage.getItem(TOKEN_KEY) || ""; } catch(_){ return ""; } }
-function saveToken(t){ try{ localStorage.setItem(TOKEN_KEY, t); } catch(_){} }
-function forgetToken(){ try{ localStorage.removeItem(TOKEN_KEY); } catch(_){} }
+/** ==========================
+ *  SESIÓN (Google)
+ *  ========================== */
+const SESSION_KEY = "cuaderno_session";
+const EMAIL_KEY = "cuaderno_email";
+function readSession(){ try{ return localStorage.getItem(SESSION_KEY) || ""; } catch(_){ return ""; } }
+function saveSession(s, email){ try{ localStorage.setItem(SESSION_KEY, s); localStorage.setItem(EMAIL_KEY, email); } catch(_){} }
+function forgetSession(){ try{ localStorage.removeItem(SESSION_KEY); localStorage.removeItem(EMAIL_KEY); } catch(_){} }
+function readEmail(){ try{ return localStorage.getItem(EMAIL_KEY) || ""; } catch(_){ return ""; } }
 
-function askToken(msg){
-  const t = prompt(msg || "Introduce la clave de acceso de la app:");
-  if(t === null || !t.trim()) throw new Error("Falta la clave de acceso.");
-  saveToken(t.trim());
-  return t.trim();
-}
-
-async function callApi(token, action, args){
+async function rawApi(action, args, session){
   let res;
   try{
     res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita el bloqueo CORS
-      body: JSON.stringify({ token, action, args })
+      body: JSON.stringify({ session, action, args })
     });
   } catch(e){
-    throw new Error("Sin conexión con el servidor. Revisa la red.");
+    return { ok:false, error:"Sin conexión con el servidor. Revisa la red." };
   }
-  return res.json();
+  try{ return await res.json(); }
+  catch(e){ return { ok:false, error:"Respuesta no válida del servidor. ¿Está publicada la última versión de Apps Script?" }; }
 }
 
-/** Llamada a Apps Script */
+/** Llamada a Apps Script con la sesión actual. Si la sesión no vale, vuelve a la pantalla de entrada. */
 async function api(action, ...args){
-  let token = readToken() || askToken();
-  let j = await callApi(token, action, args);
-  if(!j.ok && j.error === "No autorizado."){
-    forgetToken();
-    token = askToken("Clave incorrecta. Vuelve a introducirla:");
-    j = await callApi(token, action, args);
+  const j = await rawApi(action, args, readSession());
+  if(!j.ok){
+    if(j.auth){ forgetSession(); showLogin(j.error); }
+    throw new Error(j.error || "Error del servidor");
   }
-  if(!j.ok) throw new Error(j.error || "Error del servidor");
   return j.data;
 }
 
@@ -1140,7 +1174,8 @@ async function refreshList(silent=false){
 setInterval(()=>{
   const listaVisible = $("tabList").classList.contains("active");
   const modalAbierto = $("modalBackdrop").style.display === "flex";
-  if(listaVisible && !modalAbierto && !document.hidden) refreshList(true);
+  const enLogin = $("loginScreen").classList.contains("show");
+  if(listaVisible && !modalAbierto && !enLogin && !document.hidden) refreshList(true);
 }, 30000);
 
 async function loadCount(){
@@ -1255,18 +1290,15 @@ $("modalBackdrop").addEventListener("click", (e)=>{ if(e.target === $("modalBack
 /** ==========================
  *  PARETO
  *  ========================== */
-const refKey = e => `${e.maquina} · ${e.referencia}`;
+const refKey = e => e.referencia;
 
 function paretoEntries(){
-  const desde = $("pDesde").value, hasta = $("pHasta").value, maq = $("pMaquina").value;
+  const desde = $("pDesde").value, hasta = $("pHasta").value;
   const out = [];
   REGISTROS.forEach(g=>{
     if(desde && g.fecha < desde) return;
     if(hasta && g.fecha > hasta) return;
-    g.entries.forEach(e=>{
-      if(maq && e.maquina !== maq) return;
-      out.push(e);
-    });
+    g.entries.forEach(e => out.push(e));
   });
   return out;
 }
@@ -1371,7 +1403,7 @@ async function refreshPareto(){
 }
 
 $("btnParetoRefresh").addEventListener("click", refreshPareto);
-["pDesde","pHasta","pMaquina"].forEach(id => $(id).addEventListener("change", renderPareto));
+["pDesde","pHasta"].forEach(id => $(id).addEventListener("change", renderPareto));
 $("pRefSel").addEventListener("change", renderParetoRef);
 
 /** ==========================
@@ -1383,7 +1415,6 @@ function applyConfig(cfg){
   fillSelect($("maquina"), DATA.maquinas, "Selecciona máquina...");
   fillSelect($("motivo"), DATA.motivos, "Selecciona motivo...");
   fillSelect($("fMaquina"), DATA.maquinas, "Todas las máquinas");
-  fillSelect($("pMaquina"), DATA.maquinas, "Todas las máquinas");
   fillSelect($("referencia"), [], "Primero elige máquina...");
 }
 
@@ -1392,18 +1423,98 @@ function applyConfig(cfg){
  *  ========================== */
 function setToday(){ $("fecha").value = ymdNow(); }
 
+/** ==========================
+ *  INICIO DE SESIÓN CON GOOGLE
+ *  ========================== */
+let googleReady = false;
+
+function waitFor(test, ms){
+  return new Promise((resolve, reject)=>{
+    const t0 = Date.now();
+    (function loop(){
+      if(test()) return resolve();
+      if(Date.now() - t0 > ms) return reject(new Error("timeout"));
+      setTimeout(loop, 100);
+    })();
+  });
+}
+
+function setLoginMsg(t){ $("loginMsg").textContent = t || ""; }
+
+async function setupGoogleButton(){
+  if(googleReady) return;
+  const cfg = await rawApi("publicConfig", [], "");
+  if(!cfg.ok) throw new Error(cfg.error);
+  if(String(cfg.data.clientId).startsWith("PEGA_AQUI")) throw new Error("Falta configurar GOOGLE_CLIENT_ID en Código.gs.");
+  try{
+    await waitFor(()=> window.google && google.accounts && google.accounts.id, 10000);
+  } catch(_){
+    throw new Error("No se pudo cargar el inicio de sesión de Google. Revisa la conexión.");
+  }
+  google.accounts.id.initialize({
+    client_id: cfg.data.clientId,
+    callback: onGoogleCredential,
+    auto_select: false,
+    cancel_on_tap_outside: true
+  });
+  google.accounts.id.renderButton($("gBtn"), {
+    theme: "outline", size: "large", shape: "pill", text: "signin_with", locale: "es", width: 280
+  });
+  googleReady = true;
+}
+
+async function onGoogleCredential(resp){
+  setLoginMsg("⏳ Comprobando acceso…");
+  const j = await rawApi("login", [resp.credential], "");
+  if(!j.ok){ setLoginMsg("❌ " + j.error); return; }
+  saveSession(j.data.session, j.data.email);
+  setLoginMsg("");
+  startApp();
+}
+
+async function showLogin(msg){
+  closeViewModal();
+  closeCamera();
+  $("loginScreen").classList.add("show");
+  setLoginMsg(msg || "");
+  try{
+    await setupGoogleButton();
+  } catch(e){
+    setLoginMsg("❌ " + errText(e));
+  }
+}
+
+function hideLogin(){ $("loginScreen").classList.remove("show"); }
+
+async function startApp(){
+  try{
+    applyConfig(await api("getConfig"));
+  } catch(e){
+    if($("loginScreen").classList.contains("show")) return; // la sesión no valía: ya está en la pantalla de entrada
+    showLogin("❌ " + errText(e));
+    return;
+  }
+  $("userEmail").textContent = readEmail();
+  hideLogin();
+  showTab("tabForm");
+  loadCount();
+}
+
+$("btnLogout").addEventListener("click", async ()=>{
+  try{ await rawApi("logout", [], readSession()); } catch(_){}
+  forgetSession();
+  try{ google.accounts.id.disableAutoSelect(); } catch(_){}
+  showLogin("Sesión cerrada.");
+});
+
 async function init(){
   fillSelect($("nombre"), [], "Cargando…");
   fillSelect($("maquina"), [], "Cargando…");
   fillSelect($("motivo"), [], "Cargando…");
   fillSelect($("referencia"), [], "Primero elige máquina...");
   setToday();
-  try{
-    applyConfig(await api("getConfig"));
-    loadCount();
-  } catch(e){
-    showMsg("❌ No se pudo cargar la configuración: " + errText(e), "err");
-  }
+  if(readSession()) startApp();
+  else showLogin();
 }
 init();
 
