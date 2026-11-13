@@ -395,7 +395,7 @@
     .sectionTitle h1{ margin:0; }
 
     .filters{ display:grid; grid-template-columns: 1fr; gap: 10px; margin: 12px 0 4px; }
-    @media (min-width: 860px){ .filters{ grid-template-columns: 1fr 1fr 1fr auto; align-items:end; } }
+    @media (min-width: 640px){ .filters{ grid-template-columns: 1fr 1fr 1fr auto; align-items:end; } }
 
     .loading{ opacity:.8; font-size:13px; padding: 10px 0; }
 
@@ -429,6 +429,25 @@
       .topBar .topTitle{ font-weight:700; }
     }
     @media (prefers-reduced-motion: reduce){ .sidebar{ transition:none; } }
+    /* ========= PARETO ========= */
+    .paretoRow{ display:grid; grid-template-columns: 1fr; gap:12px; margin-top:10px; }
+    @media (min-width: 640px){ .paretoRow{ grid-template-columns: 1fr 1fr; } }
+    .chartCard{
+      background: var(--surface); color: var(--text);
+      border-radius: 14px; border:1px solid rgba(0,0,0,.25);
+      padding: 12px; min-width:0;
+    }
+    .chartCard h3{ margin:0 0 8px; font-size:14px; color: var(--text); }
+    .chartHead{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px; }
+    .chartHead h3{ margin:0; }
+    .chartHead select{ width:auto; min-width:240px; max-width:100%; }
+    .chartCard svg{ width:100%; height:auto; display:block; }
+    .chartEmpty{ color: rgba(0,0,0,.6); font-size:13px; padding: 24px 0; text-align:center; }
+    .pLegend{ list-style:none; margin:8px 0 0; padding:0; font-size:12px; }
+    .pLegend li{ display:grid; grid-template-columns: 22px 1fr auto; gap:8px; padding:4px 0; border-top:1px solid var(--line); align-items:baseline; }
+    .pLegend .rk{ font-weight:800; color: var(--btn); }
+    .pLegend .nm{ word-break: break-word; }
+    .pLegend .vl{ white-space:nowrap; color: rgba(0,0,0,.7); font-variant-numeric: tabular-nums; }
   </style>
 </head>
 
@@ -444,6 +463,7 @@
 
     <button class="btn navBtn active" data-tab="tabForm">📝 Nuevo registro</button>
     <button class="btn navBtn" data-tab="tabList">📋 Registros <span class="count" id="navCount">–</span></button>
+    <button class="btn navBtn" data-tab="tabPareto">📊 Pareto</button>
 
     <div class="sideFoot">
       <button id="btnInstall" class="btn" style="display:none;">⬇️ Instalar app</button>
@@ -576,6 +596,52 @@
         </div>
       </section>
 
+      <!-- ===================== PESTAÑA: PARETO ===================== -->
+      <section class="tab" id="tabPareto">
+        <div class="card">
+          <div class="sectionTitle"><h1>📊 Pareto de incidencias</h1></div>
+          <div class="muted">Las barras muestran cuántas veces aparece cada uno; la línea, el % acumulado sobre el total.</div>
+
+          <div class="filters">
+            <div>
+              <label>Desde</label>
+              <input id="pDesde" type="date" />
+            </div>
+            <div>
+              <label>Hasta</label>
+              <input id="pHasta" type="date" />
+            </div>
+            <div>
+              <label>Máquina</label>
+              <select id="pMaquina"></select>
+            </div>
+            <div>
+              <button id="btnParetoRefresh" class="btn">🔄 Actualizar</button>
+            </div>
+          </div>
+
+          <div id="paretoTotal" class="muted" style="margin:6px 0 2px;"></div>
+
+          <div class="paretoRow">
+            <div class="chartCard">
+              <h3>Top 5 motivos de incidencia</h3>
+              <div id="paretoMotivos"></div>
+            </div>
+            <div class="chartCard">
+              <h3>Top 5 referencias (máquina · referencia)</h3>
+              <div id="paretoRefs"></div>
+            </div>
+          </div>
+
+          <div class="chartCard" style="margin-top:12px;">
+            <div class="chartHead">
+              <h3>Top 5 motivos de una referencia</h3>
+              <select id="pRefSel"></select>
+            </div>
+            <div id="paretoRefMotivos"></div>
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 </div>
@@ -733,7 +799,8 @@ function resizeDataUrl(dataUrl, max=1600, quality=0.82){
  *  ========================== */
 const TAB_TITLES = {
   tabForm: "Nuevo registro",
-  tabList: "Registros"
+  tabList: "Registros",
+  tabPareto: "Pareto"
 };
 
 function showTab(id){
@@ -742,6 +809,7 @@ function showTab(id){
   $("topTitle").textContent = TAB_TITLES[id] || "";
   closeNav();
   if(id === "tabList") refreshList();
+  if(id === "tabPareto") refreshPareto();
   if(id !== "tabForm") closeCamera();
   window.scrollTo(0, 0);
 }
@@ -1185,6 +1253,128 @@ $("modalClose").addEventListener("click", closeViewModal);
 $("modalBackdrop").addEventListener("click", (e)=>{ if(e.target === $("modalBackdrop")) closeViewModal(); });
 
 /** ==========================
+ *  PARETO
+ *  ========================== */
+const refKey = e => `${e.maquina} · ${e.referencia}`;
+
+function paretoEntries(){
+  const desde = $("pDesde").value, hasta = $("pHasta").value, maq = $("pMaquina").value;
+  const out = [];
+  REGISTROS.forEach(g=>{
+    if(desde && g.fecha < desde) return;
+    if(hasta && g.fecha > hasta) return;
+    g.entries.forEach(e=>{
+      if(maq && e.maquina !== maq) return;
+      out.push(e);
+    });
+  });
+  return out;
+}
+
+function countBy(list, keyFn){
+  const m = new Map();
+  list.forEach(x=>{ const k = keyFn(x); if(k) m.set(k, (m.get(k) || 0) + 1); });
+  return [...m.entries()].map(([label, n]) => ({ label, n }))
+    .sort((a,b)=> b.n - a.n || a.label.localeCompare(b.label));
+}
+
+/** Gráfico Pareto en SVG: barras (nº) + línea de % acumulado sobre el total */
+function paretoSVG(rows, total, W = 420){
+  if(!rows.length || !total) return `<div class="chartEmpty">Sin datos en este periodo.</div>`;
+
+  const H = 250, L = 34, R = 40, T = 18, B = 30;
+  const cw = W - L - R, ch = H - T - B;
+  const maxN = Math.max(...rows.map(r=>r.n));
+  const step = Math.max(1, Math.ceil(maxN / 4));
+  const top = step * 4;
+  const slot = cw / 5, bw = slot * 0.58;
+  const y = v => T + ch - (v / top) * ch;
+  const yp = p => T + ch - (p / 100) * ch;
+
+  let acc = 0;
+  const pts = rows.map((r, i)=>{
+    acc += r.n;
+    return { x: L + slot * i + slot / 2, p: acc * 100 / total };
+  });
+
+  let g = "";
+  for(let k = 0; k <= 4; k++){
+    const v = step * k, yy = y(v);
+    g += `<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="rgba(0,0,0,.08)"/>`;
+    g += `<text x="${L-6}" y="${yy+4}" font-size="10" text-anchor="end" fill="rgba(0,0,0,.6)">${v}</text>`;
+    g += `<text x="${W-R+6}" y="${yp(k*25)+4}" font-size="10" fill="#b45309">${k*25}%</text>`;
+  }
+  g += `<line x1="${L}" y1="${T+ch}" x2="${W-R}" y2="${T+ch}" stroke="rgba(0,0,0,.35)"/>`;
+
+  rows.forEach((r, i)=>{
+    const x = L + slot * i + (slot - bw) / 2, yy = y(r.n);
+    g += `<rect x="${x}" y="${yy}" width="${bw}" height="${T+ch-yy}" rx="4" fill="${i===0 ? "#0b4f25" : "#0f7a35"}"><title>${escapeHtml(r.label)}: ${r.n}</title></rect>`;
+    g += `<text x="${x+bw/2}" y="${yy-5}" font-size="11" font-weight="700" text-anchor="middle" fill="#0b0b0b">${r.n}</text>`;
+    g += `<text x="${x+bw/2}" y="${T+ch+16}" font-size="11" font-weight="700" text-anchor="middle" fill="#0b4f25">${i+1}</text>`;
+  });
+
+  g += `<polyline points="${pts.map(p=>`${p.x},${yp(p.p)}`).join(" ")}" fill="none" stroke="#d97706" stroke-width="2.5"/>`;
+  pts.forEach(p=>{
+    g += `<circle cx="${p.x}" cy="${yp(p.p)}" r="4" fill="#fff" stroke="#d97706" stroke-width="2"/>`;
+  });
+
+  let cum = 0;
+  const legend = rows.map((r, i)=>{
+    cum += r.n;
+    return `<li><span class="rk">${i+1}</span><span class="nm">${escapeHtml(r.label)}</span>
+      <span class="vl">${r.n} · ${Math.round(r.n*100/total)}% · acum. ${Math.round(cum*100/total)}%</span></li>`;
+  }).join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Diagrama de Pareto">${g}</svg>
+    <ul class="pLegend">${legend}</ul>`;
+}
+
+function renderPareto(){
+  const list = paretoEntries();
+  const conMotivo = list.filter(e => e.motivo);
+  $("paretoTotal").textContent = `${list.length} ${list.length===1 ? "incidencia" : "incidencias"} en el periodo.`;
+
+  $("paretoMotivos").innerHTML = paretoSVG(countBy(conMotivo, e => e.motivo).slice(0,5), conMotivo.length);
+
+  const refs = countBy(list, refKey);
+  $("paretoRefs").innerHTML = paretoSVG(refs.slice(0,5), list.length);
+
+  // Selector de referencia (ordenado por nº de incidencias)
+  const sel = $("pRefSel");
+  const prev = sel.value;
+  sel.innerHTML = refs.length
+    ? refs.map(r=>`<option value="${escapeHtml(r.label)}">${escapeHtml(r.label)} (${r.n})</option>`).join("")
+    : `<option value="">Sin referencias</option>`;
+  if(refs.some(r => r.label === prev)) sel.value = prev;
+
+  renderParetoRef();
+}
+
+function renderParetoRef(){
+  const ref = $("pRefSel").value;
+  const del = paretoEntries().filter(e => e.motivo && refKey(e) === ref);
+  $("paretoRefMotivos").innerHTML = ref
+    ? paretoSVG(countBy(del, e => e.motivo).slice(0,5), del.length, 860)
+    : `<div class="chartEmpty">Sin datos en este periodo.</div>`;
+}
+
+async function refreshPareto(){
+  $("paretoMotivos").innerHTML = $("paretoRefs").innerHTML = `<div class="chartEmpty">⏳ Calculando…</div>`;
+  try{
+    REGISTROS = await api("list");
+    $("navCount").textContent = REGISTROS.length;
+    renderPareto();
+  } catch(e){
+    $("paretoMotivos").innerHTML = `<div class="chartEmpty">❌ ${escapeHtml(errText(e))}</div>`;
+    $("paretoRefs").innerHTML = "";
+  }
+}
+
+$("btnParetoRefresh").addEventListener("click", refreshPareto);
+["pDesde","pHasta","pMaquina"].forEach(id => $(id).addEventListener("change", renderPareto));
+$("pRefSel").addEventListener("change", renderParetoRef);
+
+/** ==========================
  *  CONFIGURACIÓN (listas)
  *  ========================== */
 function applyConfig(cfg){
@@ -1193,6 +1383,7 @@ function applyConfig(cfg){
   fillSelect($("maquina"), DATA.maquinas, "Selecciona máquina...");
   fillSelect($("motivo"), DATA.motivos, "Selecciona motivo...");
   fillSelect($("fMaquina"), DATA.maquinas, "Todas las máquinas");
+  fillSelect($("pMaquina"), DATA.maquinas, "Todas las máquinas");
   fillSelect($("referencia"), [], "Primero elige máquina...");
 }
 
