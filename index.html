@@ -1,0 +1,1244 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b5f2a" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Cuaderno de Registro</title>
+  <style>
+    :root{
+      font-family: system-ui, Segoe UI, Roboto, Arial;
+
+      /* ========= PALETA (verdes) ========= */
+      --bg: #136309;          /* fondo general (tu color) */
+      --card: #0f7a35;        /* tarjeta principal */
+      --card-2: #0b5f2a;      /* verde más oscuro (headers / modal marco) */
+
+      --btn: #0b4f25;         /* ✅ botones verde oscuro */
+      --btnHover: #0a441f;    /* hover */
+      --btnBorder: rgba(0,0,0,.35);
+
+      /* ========= NEUTROS ========= */
+      --surface: #ffffff;     /* ✅ cajas con texto */
+      --surface-2: #f3f4f6;   /* suave */
+      --text: #0b0b0b;        /* negro */
+      --textInv: #ffffff;     /* blanco */
+      --border: rgba(0,0,0,.25);
+      --line: rgba(0,0,0,.18);
+    }
+
+    body { margin: 0; background: var(--bg); color: var(--textInv); }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+
+    .card{
+      background: var(--card);
+      border: 1px solid rgba(0,0,0,.35);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+
+    h1 { font-size: 20px; margin: 0 0 6px; color: var(--textInv); }
+    h2 { margin: 0; color: var(--textInv); }
+
+    .grid { display:grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 860px){ .grid { grid-template-columns: 1fr 1fr; } }
+
+    label{
+      font-size: 12px;
+      color: rgba(255,255,255,.88);
+      display:block;
+      margin: 0 0 6px;
+    }
+
+    /* ✅ Regla estratégica: lo editable SIEMPRE blanco + negro */
+    input, select, textarea{
+      width:100%;
+      box-sizing:border-box;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.35);
+      background: var(--surface);
+      color: var(--text);
+      padding:10px 12px;
+    }
+    textarea { min-height: 110px; resize: vertical; }
+
+    .row { display:flex; gap:10px; }
+    .row > * { flex: 1; }
+
+    /* ✅ Botones verde oscuro + letra blanca */
+    button{
+      width:100%;
+      box-sizing:border-box;
+      border-radius:12px;
+      border:1px solid var(--btnBorder);
+      padding:10px 12px;
+      background: var(--btn);
+      color: var(--textInv);
+      cursor:pointer;
+    }
+    button:hover{ background: var(--btnHover); }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .btnPrimary{
+      /* el “primario” lo dejamos igual de oscuro para consistencia */
+      background: var(--btn);
+      border-color: var(--btnBorder);
+      color: var(--textInv);
+    }
+    .btnPrimary:hover{ background: var(--btnHover); }
+
+    .btnDanger{
+      background:#b91c1c;
+      border-color:#7f1d1d;
+      color: var(--textInv);
+    }
+    .btnDanger:hover{ filter: brightness(1.05); }
+
+    .muted { color: rgba(255,255,255,.85); font-size: 12px; opacity: .95; }
+
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.35);
+      font-size:12px;
+      color: var(--textInv);
+    }
+
+    .sigBox{
+      border:1px dashed rgba(0,0,0,.45);
+      border-radius:16px;
+      padding:10px;
+      background: rgba(255,255,255,.18);
+    }
+
+    /* ✅ Firma: canvas blanco + trazo negro (JS) */
+    canvas{
+      width:100%;
+      height:160px;
+      background: var(--surface);
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.35);
+      touch-action: none;
+    }
+    #camCanvas{ background: transparent; border:none; } /* canvas oculto de cámara */
+
+    .list { margin-top: 14px; }
+
+    /* ✅ Lista de registros: tarjeta blanca + texto negro */
+    .item{
+      display:flex; gap:10px; align-items:flex-start;
+      padding:12px;
+      border-radius:14px;
+      border:1px solid rgba(0,0,0,.25);
+      background: var(--surface);
+      margin-top:10px;
+      color: var(--text);
+    }
+    .item strong { display:block; }
+    .item .meta { font-size:12px; color: rgba(0,0,0,.65); }
+    .item .actions { margin-left:auto; display:flex; gap:8px; }
+    .item .actions button{ max-width:120px; }
+
+    /* Toast: blanco + negro */
+    .toast{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.25);
+      background: var(--surface);
+      font-size: 13px;
+      color: var(--text);
+    }
+    .ok { border-color:#14532d; }
+    .err { border-color:#7f1d1d; }
+
+    .logo{
+      height:48px;
+      width:auto;
+      border-radius:10px;
+      border:1px solid rgba(0,0,0,.35);
+      background:#ffffff;
+    }
+
+    /* Video cámara */
+    #camCanvas{ display:none; }
+
+    video{
+      background: rgba(255,255,255,.12);
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.25);
+      width:100%;
+      max-height: 340px;
+      object-fit: cover;
+    }
+
+    /* ========= MODAL VER REGISTRO ========= */
+    .modalBackdrop{
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      display:none;
+      align-items: center; justify-content: center;
+      padding: 16px;
+      z-index: 9999;
+    }
+    .modal{
+      width: min(980px, 100%);
+      max-height: min(88vh, 900px);
+      overflow: auto;
+      background: var(--card-2);
+      border:1px solid rgba(255,255,255,.15);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      padding: 14px;
+    }
+    .modalHeader{
+      display:flex; gap:10px; align-items:center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.18);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .modalTitle{
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--textInv);
+    }
+    .modalClose{
+      width:auto;
+      padding: 8px 10px;
+      border-radius: 10px;
+    }
+
+    /* Bloques info (blancos) */
+    .kv{
+      display:grid;
+      grid-template-columns: 140px 1fr;
+      gap: 8px 12px;
+      padding: 10px;
+      border:1px solid rgba(0,0,0,.25);
+      border-radius: 14px;
+      background: var(--surface);
+      margin-bottom: 12px;
+    }
+    .kv .k{ color: rgba(0,0,0,.75); font-size: 13px; }
+    .kv .v{ color: var(--text); font-size: 14px; word-break: break-word; }
+
+    .mediaCard{
+      border:1px solid rgba(0,0,0,.25);
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 10px;
+      color: var(--text);
+    }
+    .mediaCard h3{
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    /* Layout: (Detalles 2/3) + (Firma 1/3) */
+    .topRow{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    @media (min-width: 860px){
+      .topRow{
+        grid-template-columns: 2fr 1fr;
+        align-items: stretch;
+      }
+    }
+
+    .sigCard{
+      height: 87.21%;
+      display: flex;
+      flex-direction: column;
+    }
+    .sigCard h3{ margin: 0 0 8px; }
+
+    .sigImg{
+      width: 100%;
+      height: 140px;
+      object-fit: contain;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,.35);
+      background: var(--surface);
+      display:block;
+    }
+
+    /* Fotos */
+    .photoGrid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    @media (min-width: 860px){
+      .photoGrid{ grid-template-columns: 1fr 1fr 1fr; }
+    }
+    .photoGrid img{
+      width:100%;
+      height: 240px;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,.25);
+      background: var(--surface);
+      display:block;
+      object-fit: cover;
+    }
+
+    /* Observaciones en modal: blanco + negro */
+    .obsBox{
+      margin-top: 12px;
+      border:1px solid rgba(0,0,0,.25);
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 10px;
+      padding-top: 44px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      position: relative;
+      color: var(--text);
+    }
+    .obsHeader{
+      position:absolute;
+      top:10px; left:10px; right:10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .obsTitle{
+      margin:0;
+      font-size:12px;
+      color: rgba(0,0,0,.85);
+    }
+
+    /* Botón Editar pequeño (anula width:100% global) */
+    .obsEditBtn{
+      width: fit-content !important;
+      flex: 0 0 auto !important;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+      max-width: none !important;
+    }
+
+    /* =====================================================
+       AÑADIDO APPS SCRIPT: menú lateral + pestañas
+       ===================================================== */
+    .layout{ display:flex; min-height:100vh; }
+
+    .sidebar{
+      width: 240px;
+      flex: 0 0 240px;
+      background: var(--card-2);
+      border-right: 1px solid rgba(0,0,0,.35);
+      box-shadow: 4px 0 20px rgba(0,0,0,.2);
+      padding: 16px 12px;
+      box-sizing: border-box;
+      position: sticky; top: 0;
+      height: 100vh;
+      display:flex; flex-direction:column; gap: 6px;
+      z-index: 50;
+    }
+    .sideBrand{
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+      padding: 4px 4px 14px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(0,0,0,.35);
+      text-align:center;
+    }
+    .sideBrand .logo{ height:64px; }
+    .sideBrand .brandTitle{ font-weight:700; font-size:15px; line-height:1.25; }
+
+    .navBtn{
+      text-align:left;
+      background: transparent;
+      border: 1px solid transparent;
+      padding: 12px 12px;
+      font-size: 15px;
+      display:flex; align-items:center; gap:10px;
+    }
+    .navBtn:hover{ background: rgba(0,0,0,.18); }
+    .navBtn.active{
+      background: var(--btn);
+      border-color: var(--btnBorder);
+      box-shadow: inset 4px 0 0 #ffffff;
+    }
+    .navBtn .count{
+      margin-left:auto;
+      font-size:12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.18);
+    }
+    .sideFoot{ margin-top:auto; display:flex; flex-direction:column; gap:6px; }
+
+    .main{ flex:1; min-width:0; }
+    .topBar{ display:none; }
+
+    .tab{ display:none; }
+    .tab.active{ display:block; }
+
+    .sectionTitle{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .sectionTitle h1{ margin:0; }
+
+    .filters{ display:grid; grid-template-columns: 1fr; gap: 10px; margin: 12px 0 4px; }
+    @media (min-width: 860px){ .filters{ grid-template-columns: 1fr 1fr 1fr auto; align-items:end; } }
+
+    .loading{ opacity:.8; font-size:13px; padding: 10px 0; }
+
+    .toastFixed{
+      position: fixed;
+      right: 16px; bottom: 16px;
+      max-width: min(420px, calc(100vw - 32px));
+      z-index: 10000;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+
+    .backdropNav{ display:none; }
+
+    /* Tablet / móvil: el menú se convierte en cajón */
+    @media (max-width: 859px){
+      .sidebar{
+        position: fixed; left:0; top:0; bottom:0;
+        transform: translateX(-100%);
+        transition: transform .2s ease;
+      }
+      .sidebar.open{ transform: translateX(0); }
+      .backdropNav.open{
+        display:block; position:fixed; inset:0;
+        background: rgba(0,0,0,.45); z-index: 40;
+      }
+      .topBar{
+        display:flex; align-items:center; gap:10px;
+        padding: 10px 16px 0;
+      }
+      .topBar .menuBtn{ width:auto; padding: 8px 12px; font-size: 18px; }
+      .topBar .topTitle{ font-weight:700; }
+    }
+    @media (prefers-reduced-motion: reduce){ .sidebar{ transition:none; } }
+  </style>
+</head>
+
+<body>
+<div class="layout">
+
+  <!-- ========= MENÚ LATERAL ========= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sideBrand">
+      <img src="logo.png" alt="SIGIT" class="logo" />
+      <div class="brandTitle">📓 Cuaderno de Registro Calidad</div>
+    </div>
+
+    <button class="btn navBtn active" data-tab="tabForm">📝 Nuevo registro</button>
+    <button class="btn navBtn" data-tab="tabList">📋 Registros <span class="count" id="navCount">–</span></button>
+
+    <div class="sideFoot">
+      <button id="btnInstall" class="btn" style="display:none;">⬇️ Instalar app</button>
+    </div>
+  </aside>
+  <div class="backdropNav" id="backdropNav"></div>
+
+  <main class="main">
+    <div class="topBar">
+      <button class="btn menuBtn" id="btnMenu" aria-label="Abrir menú">☰</button>
+      <div class="topTitle" id="topTitle">Nuevo registro</div>
+    </div>
+
+    <div class="wrap">
+      <!-- ===================== PESTAÑA: FORMULARIO ===================== -->
+      <section class="tab active" id="tabForm">
+        <div class="card">
+          <div class="sectionTitle"><h1>📝 Nuevo registro</h1></div>
+          <hr style="border:none;border-top:1px solid rgba(0,0,0,.35);margin:14px 0;" />
+
+          <div class="grid">
+            <div>
+              <label>Fecha</label>
+              <input id="fecha" type="date" />
+            </div>
+
+            <div>
+              <label>Técnico</label>
+              <select id="nombre"></select>
+            </div>
+
+            <div>
+              <label>Turno</label>
+              <select id="turno">
+                <option value="">Selecciona turno...</option>
+                <option value="MAÑANA">MAÑANA</option>
+                <option value="TARDE">TARDE</option>
+                <option value="NOCHE">NOCHE</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Máquina</label>
+              <select id="maquina"></select>
+            </div>
+
+            <div>
+              <label>Referencia</label>
+              <select id="referencia"></select>
+            </div>
+
+            <div>
+              <label>Motivo de incidencia</label>
+              <select id="motivo"></select>
+            </div>
+
+            <!-- FOTOS -->
+            <div style="grid-column: 1 / -1;">
+              <label>Fotos</label>
+              <div class="row">
+                <button id="btnCamOpen" class="btn">📷 Abrir cámara</button>
+                <button id="btnCamShot" class="btn" disabled>📸 Hacer foto</button>
+                <button id="btnCamClose" class="btn" disabled>✖️ Cerrar cámara</button>
+              </div>
+
+              <div id="camBox" class="sigBox" style="margin-top:10px; display:none;">
+                <video id="camVideo" autoplay playsinline muted></video>
+                <canvas id="camCanvas" width="1280" height="720"></canvas>
+                <div class="muted" style="margin-top:6px;">La foto se guarda directamente en el registro.</div>
+              </div>
+
+              <div id="fotosInfo" class="muted" style="margin-top:6px;"></div>
+            </div>
+
+            <!-- OBSERVACIONES -->
+            <div style="grid-column: 1 / -1;">
+              <label>Observaciones</label>
+              <div class="row">
+                <button id="btnMic" class="btn">🎤 Dictar (Start/Stop)</button>
+                <button id="btnClearObs" class="btn">🧽 Borrar</button>
+              </div>
+              <textarea id="observaciones" placeholder="Puedes escribir o dictar aquí..." style="margin-top:10px;"></textarea>
+              <div id="micState" class="muted"></div>
+            </div>
+
+            <!-- FIRMA -->
+            <div style="grid-column: 1 / -1;">
+              <label>Firma</label>
+              <div class="sigBox">
+                <canvas id="firma" width="1200" height="320"></canvas>
+                <div class="row" style="margin-top:10px;">
+                  <button id="btnClearSig" class="btn">🧽 Borrar firma</button>
+                  <div class="pill" id="sigState">Sin firma</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:14px;">
+            <button id="btnGuardar" class="btn btnPrimary">✅ Guardar registro</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== PESTAÑA: REGISTROS ===================== -->
+      <section class="tab" id="tabList">
+        <div class="card">
+          <div class="sectionTitle"><h1>📋 Registros guardados</h1></div>
+          <div class="muted">Compartidos por todos los usuarios. Se actualizan solos cada 30 segundos.</div>
+
+          <div class="filters">
+            <div>
+              <label>Desde</label>
+              <input id="fDesde" type="date" />
+            </div>
+            <div>
+              <label>Hasta</label>
+              <input id="fHasta" type="date" />
+            </div>
+            <div>
+              <label>Máquina</label>
+              <select id="fMaquina"></select>
+            </div>
+            <div>
+              <button id="btnRefresh" class="btn">🔄 Actualizar</button>
+            </div>
+          </div>
+
+          <div id="registros" class="list"></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ========= MODAL "VER" ========= -->
+<div id="modalBackdrop" class="modalBackdrop">
+  <div class="modal">
+    <div class="modalHeader">
+      <div class="modalTitle" id="modalTitle">Registro</div>
+      <button id="modalClose" class="btn modalClose">Cerrar</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div id="msg" class="toast toastFixed" style="display:none;"></div>
+
+<script>
+/** ==========================
+ *  CONEXIÓN CON APPS SCRIPT  ⬅️ RELLENA ESTO
+ *  ========================== */
+const API_URL = "https://script.google.com/macros/s/AKfycbyeIHu_y9h_dkYUukRydhiEVc5KemfoFwNwDdK3_jMzgZpm2L6xNsVlcqLmsmO618fFqw/exec";
+// La clave de acceso NO va aquí: la app la pide la primera vez y la recuerda en la tablet.
+
+/** ==========================
+ *  ESTADO Y UTILIDADES
+ *  ========================== */
+let DATA = { nombres: [], maquinas: [], referenciasPorMaquina: {}, motivos: [] };
+let REGISTROS = []; // grupos fecha+turno (sin imágenes)
+
+const $ = (id) => document.getElementById(id);
+
+/** Clave de acceso: se pide una vez y se guarda en el dispositivo */
+const TOKEN_KEY = "cuaderno_token";
+function readToken(){ try{ return localStorage.getItem(TOKEN_KEY) || ""; } catch(_){ return ""; } }
+function saveToken(t){ try{ localStorage.setItem(TOKEN_KEY, t); } catch(_){} }
+function forgetToken(){ try{ localStorage.removeItem(TOKEN_KEY); } catch(_){} }
+
+function askToken(msg){
+  const t = prompt(msg || "Introduce la clave de acceso de la app:");
+  if(t === null || !t.trim()) throw new Error("Falta la clave de acceso.");
+  saveToken(t.trim());
+  return t.trim();
+}
+
+async function callApi(token, action, args){
+  let res;
+  try{
+    res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita el bloqueo CORS
+      body: JSON.stringify({ token, action, args })
+    });
+  } catch(e){
+    throw new Error("Sin conexión con el servidor. Revisa la red.");
+  }
+  return res.json();
+}
+
+/** Llamada a Apps Script */
+async function api(action, ...args){
+  let token = readToken() || askToken();
+  let j = await callApi(token, action, args);
+  if(!j.ok && j.error === "No autorizado."){
+    forgetToken();
+    token = askToken("Clave incorrecta. Vuelve a introducirla:");
+    j = await callApi(token, action, args);
+  }
+  if(!j.ok) throw new Error(j.error || "Error del servidor");
+  return j.data;
+}
+
+function errText(e){ return (e && e.message) ? e.message : String(e); }
+
+let msgTimer = null;
+function showMsg(text, type="ok"){
+  const el = $("msg");
+  el.className = "toast toastFixed " + (type==="ok" ? "ok" : "err");
+  el.textContent = text;
+  el.style.display = "block";
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(()=> el.style.display="none", 3500);
+}
+
+function fillSelect(sel, items, placeholder="Selecciona..."){
+  sel.innerHTML = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = placeholder;
+  sel.appendChild(opt0);
+  items.forEach(v=>{
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    sel.appendChild(opt);
+  });
+}
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+}
+
+function maquinaRank(m){
+  if(!m) return 999999;
+  const mm = String(m).toUpperCase().trim();
+  const pr = mm.match(/^PR(\d{1,2})$/);
+  if(pr) return Number(pr[1]);
+  if(mm === "RAMPF") return 100;
+  if(mm === "KUKA") return 101;
+  return 999999;
+}
+function sortEntriesByMaquina(entries){
+  return entries.sort((a,b)=>{
+    const ra = maquinaRank(a.maquina), rb = maquinaRank(b.maquina);
+    if(ra !== rb) return ra - rb;
+    return (a.createdAt || "").localeCompare(b.createdAt || "");
+  });
+}
+
+function ymdNow(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function fileToDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(r.result);
+    r.onerror = ()=> reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+/** Reduce la foto antes de subirla (más rápido y no satura Drive) */
+function resizeDataUrl(dataUrl, max=1600, quality=0.82){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = ()=> resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/** ==========================
+ *  NAVEGACIÓN (menú lateral)
+ *  ========================== */
+const TAB_TITLES = {
+  tabForm: "Nuevo registro",
+  tabList: "Registros"
+};
+
+function showTab(id){
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === id));
+  document.querySelectorAll(".navBtn").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  $("topTitle").textContent = TAB_TITLES[id] || "";
+  closeNav();
+  if(id === "tabList") refreshList();
+  if(id !== "tabForm") closeCamera();
+  window.scrollTo(0, 0);
+}
+function openNav(){ $("sidebar").classList.add("open"); $("backdropNav").classList.add("open"); }
+function closeNav(){ $("sidebar").classList.remove("open"); $("backdropNav").classList.remove("open"); }
+
+document.querySelectorAll(".navBtn").forEach(b => b.addEventListener("click", ()=> showTab(b.dataset.tab)));
+$("btnMenu").addEventListener("click", openNav);
+$("backdropNav").addEventListener("click", closeNav);
+
+/** ==========================
+ *  CÁMARA
+ *  ========================== */
+let camStream = null;
+let camPhotos = [];
+
+function updateFotosInfo(){
+  $("fotosInfo").textContent = camPhotos.length ? `Fotos añadidas: ${camPhotos.length}` : "";
+}
+
+async function openCamera(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    showMsg("Este navegador no permite usar la cámara (¿la página está en https?).", "err");
+    return;
+  }
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    $("camBox").style.display = "block";
+    $("camVideo").srcObject = camStream;
+    $("btnCamShot").disabled = false;
+    $("btnCamClose").disabled = false;
+    showMsg("Cámara lista ✅");
+  } catch(e){
+    showMsg(e && e.name === "NotAllowedError"
+      ? "Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones."
+      : "No se pudo abrir la cámara.", "err");
+  }
+}
+
+function closeCamera(){
+  if(camStream){
+    camStream.getTracks().forEach(t=>t.stop());
+    camStream = null;
+  }
+  $("camVideo").srcObject = null;
+  $("camBox").style.display = "none";
+  $("btnCamShot").disabled = true;
+  $("btnCamClose").disabled = true;
+}
+
+async function takePhoto(){
+  const video = $("camVideo");
+  const c = $("camCanvas");
+  const w = video.videoWidth || 1280;
+  const h = video.videoHeight || 720;
+  c.width = w; c.height = h;
+  c.getContext("2d").drawImage(video, 0, 0, w, h);
+  const dataUrl = await resizeDataUrl(c.toDataURL("image/jpeg", 0.9));
+  camPhotos.push({ name: `foto_${new Date().toISOString().replace(/[:.]/g,"-")}.jpg`, dataUrl });
+  updateFotosInfo();
+  showMsg("📸 Foto añadida");
+}
+
+$("btnCamOpen").addEventListener("click", openCamera);
+$("btnCamClose").addEventListener("click", closeCamera);
+$("btnCamShot").addEventListener("click", takePhoto);
+
+/** ==========================
+ *  FIRMA
+ *  ========================== */
+const canvas = $("firma");
+const ctx = canvas.getContext("2d");
+ctx.lineWidth = 4;
+ctx.lineCap = "round";
+ctx.strokeStyle = "#000000";
+
+let drawing = false;
+let hasSignature = false;
+
+function resetSignatureCanvas(){
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0,0,canvas.width, canvas.height);
+  ctx.restore();
+}
+resetSignatureCanvas();
+
+function getPos(e){
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches && e.touches[0];
+  const clientX = t ? t.clientX : e.clientX;
+  const clientY = t ? t.clientY : e.clientY;
+  return {
+    x: (clientX - rect.left) * (canvas.width / rect.width),
+    y: (clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+function startDraw(e){ drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+function moveDraw(e){
+  if(!drawing) return;
+  const p = getPos(e);
+  ctx.lineTo(p.x, p.y); ctx.stroke();
+  hasSignature = true;
+  $("sigState").textContent = "Firma capturada";
+  e.preventDefault();
+}
+function endDraw(e){ drawing = false; e.preventDefault(); }
+
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("mousemove", moveDraw);
+canvas.addEventListener("mouseup", endDraw);
+canvas.addEventListener("mouseleave", endDraw);
+canvas.addEventListener("touchstart", startDraw, {passive:false});
+canvas.addEventListener("touchmove", moveDraw, {passive:false});
+canvas.addEventListener("touchend", endDraw, {passive:false});
+
+function clearSignature(){
+  resetSignatureCanvas();
+  hasSignature = false;
+  $("sigState").textContent = "Sin firma";
+}
+$("btnClearSig").addEventListener("click", clearSignature);
+
+/** ==========================
+ *  DICTADO
+ *  ========================== */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+let recOn = false;
+
+function setMicButton(){ $("btnMic").textContent = recOn ? "🛑 Parar dictado" : "🎤 Dictar (Start/Stop)"; }
+
+function initSpeech(){
+  if(!SpeechRecognition){
+    $("micState").textContent = "⚠️ Dictado no disponible en este navegador. Usa Chrome o Edge.";
+    $("btnMic").disabled = true;
+    return;
+  }
+  rec = new SpeechRecognition();
+  rec.lang = "es-ES";
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  rec.onresult = (event)=>{
+    let finalText = "", interim = "";
+    for(let i=event.resultIndex; i<event.results.length; i++){
+      const t = event.results[i][0].transcript;
+      if(event.results[i].isFinal) finalText += t + " ";
+      else interim += t;
+    }
+    if(finalText) $("observaciones").value = ($("observaciones").value + " " + finalText).trim();
+    $("micState").textContent = recOn ? ("🎤 Escuchando… " + (interim ? " ["+interim+"]" : "")) : "";
+  };
+  rec.onerror = (e)=>{
+    if(e.error === "no-speech") return; // silencio: sigue escuchando
+    recOn = false; setMicButton();
+    $("micState").textContent = (e.error === "not-allowed")
+      ? "⚠️ Permiso de micrófono denegado. Actívalo en el candado de la barra de direcciones."
+      : "⚠️ Error dictado: " + e.error;
+  };
+  rec.onend = ()=>{
+    if(recOn){ try{ rec.start(); } catch(_){} }
+    else $("micState").textContent = "";
+  };
+}
+
+$("btnMic").addEventListener("click", ()=>{
+  if(!rec) initSpeech();
+  if(!rec) return;
+  recOn = !recOn;
+  if(recOn){
+    try{
+      rec.start();
+      $("micState").textContent = "🎤 Escuchando…";
+    } catch(e){
+      recOn = false;
+      showMsg("No se pudo iniciar el dictado.", "err");
+    }
+  } else {
+    try{ rec.stop(); } catch(_){}
+    $("micState").textContent = "";
+  }
+  setMicButton();
+});
+$("btnClearObs").addEventListener("click", ()=> $("observaciones").value = "");
+
+/** Referencias dependientes */
+$("maquina").addEventListener("change", ()=>{
+  const m = $("maquina").value;
+  const refs = m ? (DATA.referenciasPorMaquina[m] || []) : [];
+  fillSelect($("referencia"), refs, m ? "Selecciona referencia..." : "Primero elige máquina...");
+});
+
+/** ==========================
+ *  GUARDAR
+ *  ========================== */
+$("btnGuardar").addEventListener("click", async ()=>{
+  const payload = {
+    fecha: $("fecha").value,
+    nombre: $("nombre").value,
+    turno: $("turno").value,
+    maquina: $("maquina").value,
+    referencia: $("referencia").value,
+    motivo: $("motivo").value,
+    observaciones: $("observaciones").value.trim()
+  };
+
+  if(!payload.fecha || !payload.nombre || !payload.turno || !payload.maquina || !payload.referencia || !payload.motivo){
+    showMsg("Faltan campos obligatorios (fecha, técnico, turno, máquina, referencia, motivo).", "err");
+    return;
+  }
+  if(!hasSignature){
+    showMsg("Falta la firma.", "err");
+    return;
+  }
+
+  payload.fotos = camPhotos.map(f => ({ name: f.name, dataUrl: f.dataUrl }));
+  payload.firma = canvas.toDataURL("image/png");
+
+  const btn = $("btnGuardar");
+  btn.disabled = true;
+  btn.textContent = "⏳ Guardando…";
+  try{
+    await api("guardar", payload);
+
+    $("nombre").value = "";
+    $("turno").value = "";
+    $("maquina").value = "";
+    fillSelect($("referencia"), [], "Primero elige máquina...");
+    $("motivo").value = "";
+    camPhotos = [];
+    updateFotosInfo();
+    $("observaciones").value = "";
+    clearSignature();
+    closeCamera();
+
+    showMsg("✅ Registro guardado");
+    loadCount();
+  } catch(e){
+    showMsg("❌ " + errText(e), "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "✅ Guardar registro";
+  }
+});
+
+/** ==========================
+ *  LISTA DE REGISTROS
+ *  ========================== */
+const TURNO_ORDER = { "MAÑANA": 1, "TARDE": 2, "NOCHE": 3 };
+
+function sortGroups(regs){
+  return regs.sort((a,b)=>{
+    if(a.fecha !== b.fecha) return b.fecha.localeCompare(a.fecha);
+    return (TURNO_ORDER[b.turno] || 99) - (TURNO_ORDER[a.turno] || 99);
+  });
+}
+
+function applyFilters(regs){
+  const desde = $("fDesde").value, hasta = $("fHasta").value, maq = $("fMaquina").value;
+  return regs.filter(r=>{
+    if(desde && r.fecha < desde) return false;
+    if(hasta && r.fecha > hasta) return false;
+    if(maq && !r.entries.some(e => e.maquina === maq)) return false;
+    return true;
+  });
+}
+
+function renderList(){
+  const cont = $("registros");
+  const regs = sortGroups(applyFilters([...REGISTROS]));
+
+  if(!regs.length){
+    cont.innerHTML = `<div class="muted" style="margin-top:10px;">${REGISTROS.length ? "Ningún registro coincide con el filtro." : "No hay registros todavía. Crea el primero en “Nuevo registro”."}</div>`;
+    return;
+  }
+
+  cont.innerHTML = regs.map(r=>{
+    const n = r.entries.length;
+    const preview = sortEntriesByMaquina([...r.entries]).slice(0,3).map(e=>e.maquina).filter(Boolean).join(", ") + (n > 3 ? "…" : "");
+    return `
+      <div class="item">
+        <div>
+          <strong>${escapeHtml(r.fecha)} — ${escapeHtml(r.turno)} (${n} ${n===1 ? "entrada" : "entradas"})</strong>
+          <div class="meta">Máquinas: ${escapeHtml(preview) || "-"}</div>
+        </div>
+        <div class="actions">
+          <button class="btn" data-view="1" data-fecha="${escapeHtml(r.fecha)}" data-turno="${escapeHtml(r.turno)}">Ver</button>
+          <button class="btn btnDanger" data-del="1" data-fecha="${escapeHtml(r.fecha)}" data-turno="${escapeHtml(r.turno)}">Borrar</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  cont.querySelectorAll("button[data-view]").forEach(btn=>{
+    btn.addEventListener("click", ()=> openViewModal(btn.dataset.fecha, btn.dataset.turno));
+  });
+
+  cont.querySelectorAll("button[data-del]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const pass = prompt(`Contraseña para borrar el registro ${btn.dataset.fecha} — ${btn.dataset.turno}:`);
+      if(pass === null) return;
+      btn.disabled = true;
+      try{
+        await api("borrar", btn.dataset.fecha, btn.dataset.turno, pass);
+        showMsg("🗑️ Registro borrado");
+        refreshList();
+      } catch(e){
+        btn.disabled = false;
+        showMsg("❌ " + errText(e), "err");
+      }
+    });
+  });
+}
+
+async function refreshList(silent=false){
+  if(!silent) $("registros").innerHTML = `<div class="loading">⏳ Cargando registros…</div>`;
+  try{
+    REGISTROS = await api("list");
+    $("navCount").textContent = REGISTROS.length;
+    renderList();
+  } catch(e){
+    if(!silent) $("registros").innerHTML = `<div class="toast err">❌ ${escapeHtml(errText(e))}</div>`;
+  }
+}
+
+/** Auto-actualización: si la pestaña Registros está abierta (y no hay un registro abierto),
+ *  recarga cada 30 s para ver lo que guardan los demás. */
+setInterval(()=>{
+  const listaVisible = $("tabList").classList.contains("active");
+  const modalAbierto = $("modalBackdrop").style.display === "flex";
+  if(listaVisible && !modalAbierto && !document.hidden) refreshList(true);
+}, 30000);
+
+async function loadCount(){
+  try{
+    REGISTROS = await api("list");
+    $("navCount").textContent = REGISTROS.length;
+  } catch(_){}
+}
+
+$("btnRefresh").addEventListener("click", ()=> refreshList());
+["fDesde","fHasta","fMaquina"].forEach(id => $(id).addEventListener("change", renderList));
+
+/** ==========================
+ *  MODAL VER REGISTRO
+ *  ========================== */
+async function openViewModal(fecha, turno){
+  $("modalTitle").textContent = `Registro ${fecha} — ${turno}`;
+  $("modalBody").innerHTML = `<div class="loading">⏳ Cargando fotos y firmas…</div>`;
+  $("modalBackdrop").style.display = "flex";
+
+  let r;
+  try{
+    r = await api("get", fecha, turno);
+  } catch(e){
+    $("modalBody").innerHTML = `<div class="toast err">❌ ${escapeHtml(errText(e))}</div>`;
+    return;
+  }
+
+  const entries = sortEntriesByMaquina([...(r.entries || [])]);
+
+  const entriesHtml = entries.length
+    ? entries.map((e, idx)=>{
+        const fotos = e.fotos || [];
+        const fotosHtml = fotos.length
+          ? `<div class="photoGrid">${fotos.map(f=>`<img src="${f.dataUrl}" alt="${escapeHtml(f.name||'foto')}" />`).join("")}</div>`
+          : `<div class="muted" style="color:rgba(0,0,0,.65)">No hay fotos.</div>`;
+        const firmaHtml = e.firma
+          ? `<img class="sigImg" src="${e.firma}" alt="Firma" />`
+          : `<div class="muted" style="color:rgba(0,0,0,.65)">No hay firma.</div>`;
+
+        return `
+          <div class="topRow">
+            <div class="kv" style="margin-bottom:0;">
+              <div class="k">#</div><div class="v">${idx+1}</div>
+              <div class="k">Técnico</div><div class="v">${escapeHtml(e.nombre)}</div>
+              <div class="k">Máquina</div><div class="v">${escapeHtml(e.maquina)}</div>
+              <div class="k">Referencia</div><div class="v">${escapeHtml(e.referencia)}</div>
+              <div class="k">Motivo</div><div class="v">${escapeHtml(e.motivo) || "—"}</div>
+              <div class="k">Creado</div><div class="v">${escapeHtml(e.createdAt)}</div>
+              <div class="k">Fotos</div><div class="v">${fotos.length}</div>
+            </div>
+            <div class="mediaCard sigCard">
+              <h3>✍️ Firma</h3>
+              ${firmaHtml}
+            </div>
+          </div>
+
+          <div class="mediaCard" style="margin-bottom:12px;">
+            <h3>📷 Fotos (${fotos.length})</h3>
+            ${fotosHtml}
+          </div>
+
+          <div class="obsBox" style="margin-bottom:18px;">
+            <div class="obsHeader">
+              <div class="obsTitle">📝 Observaciones</div>
+              <button class="btn obsEditBtn" data-edit-id="${escapeHtml(e.id)}">✏️ Editar</button>
+            </div>
+            <div data-obs-text="${escapeHtml(e.id)}">${escapeHtml(e.observaciones) || '<span style="color:rgba(0,0,0,.65)">Sin observaciones.</span>'}</div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,.18);margin:14px 0;" />`;
+      }).join("")
+    : `<div class="muted">No hay entradas dentro de este registro.</div>`;
+
+  $("modalBody").innerHTML = `
+    <div class="kv">
+      <div class="k">Fecha</div><div class="v">${escapeHtml(r.fecha)}</div>
+      <div class="k">Turno</div><div class="v">${escapeHtml(r.turno)}</div>
+      <div class="k">Entradas</div><div class="v">${entries.length}</div>
+    </div>
+    ${entriesHtml}`;
+
+  $("modalBody").querySelectorAll("button[data-edit-id]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const id = btn.dataset.editId;
+      const entry = entries.find(x => x.id === id);
+      const nuevo = prompt("Editar observaciones:", entry ? entry.observaciones : "");
+      if(nuevo === null) return;
+      btn.disabled = true;
+      try{
+        await api("updateObs", id, nuevo);
+        if(entry) entry.observaciones = String(nuevo).trim();
+        const box = $("modalBody").querySelector(`[data-obs-text="${CSS.escape(id)}"]`);
+        if(box) box.innerHTML = escapeHtml(entry.observaciones) || '<span style="color:rgba(0,0,0,.65)">Sin observaciones.</span>';
+        showMsg("✅ Observaciones actualizadas");
+      } catch(e){
+        showMsg("❌ " + errText(e), "err");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+function closeViewModal(){
+  $("modalBackdrop").style.display = "none";
+  $("modalBody").innerHTML = "";
+}
+$("modalClose").addEventListener("click", closeViewModal);
+$("modalBackdrop").addEventListener("click", (e)=>{ if(e.target === $("modalBackdrop")) closeViewModal(); });
+
+/** ==========================
+ *  CONFIGURACIÓN (listas)
+ *  ========================== */
+function applyConfig(cfg){
+  DATA = cfg;
+  fillSelect($("nombre"), DATA.nombres, "Selecciona técnico...");
+  fillSelect($("maquina"), DATA.maquinas, "Selecciona máquina...");
+  fillSelect($("motivo"), DATA.motivos, "Selecciona motivo...");
+  fillSelect($("fMaquina"), DATA.maquinas, "Todas las máquinas");
+  fillSelect($("referencia"), [], "Primero elige máquina...");
+}
+
+/** ==========================
+ *  INICIO
+ *  ========================== */
+function setToday(){ $("fecha").value = ymdNow(); }
+
+async function init(){
+  fillSelect($("nombre"), [], "Cargando…");
+  fillSelect($("maquina"), [], "Cargando…");
+  fillSelect($("motivo"), [], "Cargando…");
+  fillSelect($("referencia"), [], "Primero elige máquina...");
+  setToday();
+  try{
+    applyConfig(await api("getConfig"));
+    loadCount();
+  } catch(e){
+    showMsg("❌ No se pudo cargar la configuración: " + errText(e), "err");
+  }
+}
+init();
+
+/** ==========================
+ *  APP INSTALABLE (PWA)
+ *  ========================== */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js").then(reg => reg.update()).catch(()=>{});
+}
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", (e)=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  $("btnInstall").style.display = "block";
+});
+$("btnInstall").addEventListener("click", async ()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  $("btnInstall").style.display = "none";
+});
+
+window.addEventListener("beforeunload", ()=>{ try{ closeCamera(); } catch(_){} });
+
+
+</script>
+</body>
+</html>
