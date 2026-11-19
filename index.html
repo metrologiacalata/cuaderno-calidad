@@ -487,23 +487,26 @@
 
           <div class="grid">
             <div>
-              <label>Fecha</label>
-              <input id="fecha" type="date" />
+              <div class="row">
+                <div style="flex:1 1 0;min-width:0;">
+                  <label>Fecha</label>
+                  <input id="fecha" type="date" />
+                </div>
+                <div style="flex:1 1 0;min-width:0;">
+                  <label>Turno</label>
+                  <select id="turno">
+                    <option value="">Turno...</option>
+                    <option value="MAÑANA">MAÑANA</option>
+                    <option value="TARDE">TARDE</option>
+                    <option value="NOCHE">NOCHE</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div>
               <label>Técnico</label>
               <select id="nombre"></select>
-            </div>
-
-            <div>
-              <label>Turno</label>
-              <select id="turno">
-                <option value="">Selecciona turno...</option>
-                <option value="MAÑANA">MAÑANA</option>
-                <option value="TARDE">TARDE</option>
-                <option value="NOCHE">NOCHE</option>
-              </select>
             </div>
 
             <div>
@@ -517,8 +520,19 @@
             </div>
 
             <div>
-              <label>Motivo de incidencia</label>
-              <select id="motivo"></select>
+              <label>Motivo de defecto 1 <span style="opacity:.8;font-weight:400">· Nº</span></label>
+              <div class="row">
+                <select id="motivo" style="flex:1 1 0;min-width:0;"></select>
+                <input id="cant1" type="number" min="0" step="1" inputmode="numeric" placeholder="Nº" style="flex:0 0 84px;width:84px;" />
+              </div>
+            </div>
+
+            <div>
+              <label>Motivo de defecto 2 <span style="opacity:.8;font-weight:400">· Nº</span></label>
+              <div class="row">
+                <select id="motivo2" style="flex:1 1 0;min-width:0;"></select>
+                <input id="cant2" type="number" min="0" step="1" inputmode="numeric" placeholder="Nº" style="flex:0 0 84px;width:84px;" />
+              </div>
             </div>
 
             <!-- FOTOS -->
@@ -993,11 +1007,18 @@ $("btnGuardar").addEventListener("click", async ()=>{
     maquina: $("maquina").value,
     referencia: $("referencia").value,
     motivo: $("motivo").value,
+    cant1: $("cant1").value.trim(),
+    motivo2: $("motivo2").value,
+    cant2: $("cant2").value.trim(),
     observaciones: $("observaciones").value.trim()
   };
 
   if(!payload.fecha || !payload.nombre || !payload.turno || !payload.maquina || !payload.referencia || !payload.motivo){
-    showMsg("Faltan campos obligatorios (fecha, técnico, turno, máquina, referencia, motivo).", "err");
+    showMsg("Faltan campos obligatorios (fecha, técnico, turno, máquina, referencia, motivo de defecto 1).", "err");
+    return;
+  }
+  if(payload.cant2 && !payload.motivo2){
+    showMsg("Has puesto un número en el motivo 2 pero no has elegido motivo.", "err");
     return;
   }
   if(!hasSignature){
@@ -1019,6 +1040,9 @@ $("btnGuardar").addEventListener("click", async ()=>{
     $("maquina").value = "";
     fillSelect($("referencia"), [], "Primero elige máquina...");
     $("motivo").value = "";
+    $("cant1").value = "";
+    $("motivo2").value = "";
+    $("cant2").value = "";
     camPhotos = [];
     updateFotosInfo();
     $("observaciones").value = "";
@@ -1136,6 +1160,8 @@ $("btnRefresh").addEventListener("click", ()=> refreshList());
 /** ==========================
  *  DESCARGAR EXCEL
  *  ========================== */
+function num_(v){ const n = Number(v); return (v === "" || v == null || isNaN(n)) ? "" : n; }
+
 async function descargarExcel(){
   const btn = $("btnExcel");
   const txt = btn.textContent;
@@ -1145,11 +1171,11 @@ async function descargarExcel(){
     const rows = await api("exportar", $("fDesde").value, $("fHasta").value, $("fMaquina").value);
     if(!rows.length) throw new Error("No hay registros con esos filtros.");
 
-    const header = ["Fecha","Turno","Técnico","Máquina","Referencia","Motivo","Observaciones","Nº fotos","Enlaces fotos","Enlace firma","Creado en"];
-    const aoa = [header, ...rows.map(r => [r.fecha, r.turno, r.nombre, r.maquina, r.referencia, r.motivo,
+    const header = ["Fecha","Turno","Técnico","Máquina","Referencia","Motivo defecto 1","Nº 1","Motivo defecto 2","Nº 2","Observaciones","Nº fotos","Enlaces fotos","Enlace firma","Creado en"];
+    const aoa = [header, ...rows.map(r => [r.fecha, r.turno, r.nombre, r.maquina, r.referencia, r.motivo, num_(r.cant1), r.motivo2, num_(r.cant2),
       r.observaciones, r.nFotos, r.fotosUrls, r.firmaUrl, r.createdAt])];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{wch:11},{wch:10},{wch:24},{wch:9},{wch:30},{wch:22},{wch:50},{wch:9},{wch:40},{wch:40},{wch:20}];
+    ws["!cols"] = [{wch:11},{wch:10},{wch:24},{wch:9},{wch:30},{wch:22},{wch:6},{wch:22},{wch:6},{wch:50},{wch:9},{wch:40},{wch:40},{wch:20}];
     ws["!autofilter"] = { ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:aoa.length-1, c:header.length-1}}) };
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Registros");
@@ -1223,7 +1249,8 @@ async function openViewModal(fecha, turno){
               <div class="k">Técnico</div><div class="v">${escapeHtml(e.nombre)}</div>
               <div class="k">Máquina</div><div class="v">${escapeHtml(e.maquina)}</div>
               <div class="k">Referencia</div><div class="v">${escapeHtml(e.referencia)}</div>
-              <div class="k">Motivo</div><div class="v">${escapeHtml(e.motivo) || "—"}</div>
+              <div class="k">Motivo 1</div><div class="v">${escapeHtml(e.motivo) || "—"}${e.cant1 !== "" && e.cant1 != null ? " · Nº " + escapeHtml(String(e.cant1)) : ""}</div>
+              ${e.motivo2 ? `<div class="k">Motivo 2</div><div class="v">${escapeHtml(e.motivo2)}${e.cant2 !== "" && e.cant2 != null ? " · Nº " + escapeHtml(String(e.cant2)) : ""}</div>` : ""}
               <div class="k">Creado</div><div class="v">${escapeHtml(e.createdAt)}</div>
               <div class="k">Fotos</div><div class="v">${fotos.length}</div>
             </div>
@@ -1303,6 +1330,16 @@ function paretoEntries(){
   return out;
 }
 
+/** Una fila por cada motivo informado (motivo 1 y motivo 2) */
+function motivosPareto(list){
+  const out = [];
+  list.forEach(e=>{
+    if(e.motivo)  out.push({ ...e, motivo: e.motivo });
+    if(e.motivo2) out.push({ ...e, motivo: e.motivo2 });
+  });
+  return out;
+}
+
 function countBy(list, keyFn){
   const m = new Map();
   list.forEach(x=>{ const k = keyFn(x); if(k) m.set(k, (m.get(k) || 0) + 1); });
@@ -1363,7 +1400,7 @@ function paretoSVG(rows, total, W = 420){
 
 function renderPareto(){
   const list = paretoEntries();
-  const conMotivo = list.filter(e => e.motivo);
+  const conMotivo = motivosPareto(list);
   $("paretoTotal").textContent = `${list.length} ${list.length===1 ? "incidencia" : "incidencias"} en el periodo.`;
 
   $("paretoMotivos").innerHTML = paretoSVG(countBy(conMotivo, e => e.motivo).slice(0,5), conMotivo.length);
@@ -1384,7 +1421,7 @@ function renderPareto(){
 
 function renderParetoRef(){
   const ref = $("pRefSel").value;
-  const del = paretoEntries().filter(e => e.motivo && refKey(e) === ref);
+  const del = motivosPareto(paretoEntries().filter(e => refKey(e) === ref));
   $("paretoRefMotivos").innerHTML = ref
     ? paretoSVG(countBy(del, e => e.motivo).slice(0,5), del.length, 860)
     : `<div class="chartEmpty">Sin datos en este periodo.</div>`;
@@ -1414,6 +1451,7 @@ function applyConfig(cfg){
   fillSelect($("nombre"), DATA.nombres, "Selecciona técnico...");
   fillSelect($("maquina"), DATA.maquinas, "Selecciona máquina...");
   fillSelect($("motivo"), DATA.motivos, "Selecciona motivo...");
+  fillSelect($("motivo2"), DATA.motivos, "Motivo 2 (opcional)");
   fillSelect($("fMaquina"), DATA.maquinas, "Todas las máquinas");
   fillSelect($("referencia"), [], "Primero elige máquina...");
 }
@@ -1427,6 +1465,7 @@ async function init(){
   fillSelect($("nombre"), [], "Cargando…");
   fillSelect($("maquina"), [], "Cargando…");
   fillSelect($("motivo"), [], "Cargando…");
+  fillSelect($("motivo2"), [], "Cargando…");
   fillSelect($("referencia"), [], "Primero elige máquina...");
   setToday();
   try{
