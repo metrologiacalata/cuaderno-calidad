@@ -672,7 +672,7 @@
 </div>
 
 <div id="msg" class="toast toastFixed" style="display:none;"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script>
 /** ==========================
  *  CONEXIÓN CON APPS SCRIPT  ⬅️ RELLENA ESTO
@@ -1171,11 +1171,24 @@ async function descargarExcel(){
     const rows = await api("exportar", $("fDesde").value, $("fHasta").value, $("fMaquina").value);
     if(!rows.length) throw new Error("No hay registros con esos filtros.");
 
-    const header = ["Fecha","Turno","Técnico","Máquina","Referencia","Motivo defecto 1","Nº 1","Motivo defecto 2","Nº 2","Observaciones","Nº fotos","Enlaces fotos","Enlace firma","Creado en"];
+    const header = ["Fecha","Turno","Técnico","Máquina","Referencia","Motivo defecto 1","Nº 1","Motivo defecto 2","Nº 2","Observaciones"];
     const aoa = [header, ...rows.map(r => [r.fecha, r.turno, r.nombre, r.maquina, r.referencia, r.motivo, num_(r.cant1), r.motivo2, num_(r.cant2),
-      r.observaciones, r.nFotos, r.fotosUrls, r.firmaUrl, r.createdAt])];
+      r.observaciones])];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{wch:11},{wch:10},{wch:24},{wch:9},{wch:30},{wch:22},{wch:6},{wch:22},{wch:6},{wch:50},{wch:9},{wch:40},{wch:40},{wch:20}];
+    ws["!cols"] = [{wch:11},{wch:10},{wch:24},{wch:9},{wch:30},{wch:22},{wch:6},{wch:22},{wch:6},{wch:50}];
+    // Estilo: cabecera verde oscuro, texto blanco en negrita, cuadrícula en todas las celdas
+    const borde = { style:"thin", color:{ rgb:"000000" } };
+    const bordes = { top:borde, bottom:borde, left:borde, right:borde };
+    for(let R = 0; R < aoa.length; R++){
+      for(let C = 0; C < header.length; C++){
+        const ref = XLSX.utils.encode_cell({ r:R, c:C });
+        if(!ws[ref]) ws[ref] = { t:"s", v:"" };
+        ws[ref].s = R === 0
+          ? { font:{ bold:true, color:{ rgb:"FFFFFF" } }, fill:{ patternType:"solid", fgColor:{ rgb:"2E7D32" } },
+              alignment:{ horizontal:"center", vertical:"center", wrapText:true }, border:bordes }
+          : { alignment:{ vertical:"top", wrapText:true }, border:bordes };
+      }
+    }
     ws["!autofilter"] = { ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:aoa.length-1, c:header.length-1}}) };
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Registros");
