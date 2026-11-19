@@ -1,4 +1,4 @@
-const CACHE = "registro-pwa-v8"; // ⬅️ SUBE ESTO cada vez que cambies HTML/CSS/JS
+const CACHE = "registro-pwa-v9"; // ⬅️ SUBE ESTO cada vez que cambies HTML/CSS/JS
 const CORE_ASSETS = [
   "./",
   "./index.html",

@@ -591,6 +591,9 @@
             <div>
               <button id="btnRefresh" class="btn">🔄 Actualizar</button>
             </div>
+            <div>
+              <button id="btnExcel" class="btn btnPrimary">📥 Descargar Excel</button>
+            </div>
           </div>
 
           <div id="registros" class="list"></div>
@@ -655,6 +658,7 @@
 </div>
 
 <div id="msg" class="toast toastFixed" style="display:none;"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 /** ==========================
  *  CONEXIÓN CON APPS SCRIPT  ⬅️ RELLENA ESTO
@@ -1127,6 +1131,62 @@ async function loadCount(){
 
 $("btnRefresh").addEventListener("click", ()=> refreshList());
 ["fDesde","fHasta","fMaquina"].forEach(id => $(id).addEventListener("change", renderList));
+
+
+/** ==========================
+ *  DESCARGAR EXCEL
+ *  ========================== */
+async function descargarExcel(){
+  const btn = $("btnExcel");
+  const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = "⏳ Generando…";
+  try{
+    if(typeof XLSX === "undefined") throw new Error("No se pudo cargar la librería de Excel. Revisa la conexión.");
+    const rows = await api("exportar", $("fDesde").value, $("fHasta").value, $("fMaquina").value);
+    if(!rows.length) throw new Error("No hay registros con esos filtros.");
+
+    const header = ["Fecha","Turno","Técnico","Máquina","Referencia","Motivo","Observaciones","Nº fotos","Enlaces fotos","Enlace firma","Creado en"];
+    const aoa = [header, ...rows.map(r => [r.fecha, r.turno, r.nombre, r.maquina, r.referencia, r.motivo,
+      r.observaciones, r.nFotos, r.fotosUrls, r.firmaUrl, r.createdAt])];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:11},{wch:10},{wch:24},{wch:9},{wch:30},{wch:22},{wch:50},{wch:9},{wch:40},{wch:40},{wch:20}];
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:aoa.length-1, c:header.length-1}}) };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Registros");
+
+    const nombre = `Registros_Calidad_${ymdNow()}.xlsx`;
+    const bytes = XLSX.write(wb, { bookType:"xlsx", type:"array" });
+    const blob = new Blob([bytes], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+    // Chrome/Edge (ordenador): selector de "Guardar como" abierto en el Escritorio
+    if(window.showSaveFilePicker){
+      try{
+        const h = await window.showSaveFilePicker({
+          suggestedName: nombre,
+          startIn: "desktop",
+          types: [{ description:"Excel", accept:{ "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx"] } }]
+        });
+        const w = await h.createWritable(); await w.write(blob); await w.close();
+        showMsg("✅ Excel guardado.");
+        return;
+      }catch(e){
+        if(e && e.name === "AbortError") return; // el usuario canceló
+        // cualquier otro fallo → descarga normal
+      }
+    }
+    // Resto de navegadores / móvil: descarga normal (carpeta Descargas)
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(a.href), 5000);
+    showMsg("✅ Excel descargado.");
+  }catch(e){
+    showMsg(errText(e), "err");
+  }finally{
+    btn.disabled = false; btn.textContent = txt;
+  }
+}
+$("btnExcel").addEventListener("click", descargarExcel);
 
 /** ==========================
  *  MODAL VER REGISTRO
