@@ -638,18 +638,18 @@
 
           <div class="paretoRow">
             <div class="chartCard">
-              <h3>Top 5 motivos de incidencia</h3>
-              <div id="paretoMotivos"></div>
+              <h3>Top 5 referencias <span class="muted" style="font-weight:400;font-size:12px;">(nº de incidencias)</span></h3>
+              <div id="paretoRefs"></div>
             </div>
             <div class="chartCard">
-              <h3>Top 5 referencias</h3>
-              <div id="paretoRefs"></div>
+              <h3>Top 5 defectos <span class="muted" style="font-weight:400;font-size:12px;">(nº de piezas)</span></h3>
+              <div id="paretoMotivos"></div>
             </div>
           </div>
 
           <div class="chartCard" style="margin-top:12px;">
             <div class="chartHead">
-              <h3>Top 5 motivos de una referencia</h3>
+              <h3>Top 5 defectos de una referencia <span class="muted" style="font-weight:400;font-size:12px;">(nº de piezas)</span></h3>
               <select id="pRefSel"></select>
             </div>
             <div id="paretoRefMotivos"></div>
@@ -801,6 +801,7 @@ function showTab(id){
   document.querySelectorAll(".navBtn").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
   $("topTitle").textContent = TAB_TITLES[id] || "";
   closeNav();
+  if(id === "tabForm") reloadConfig();
   if(id === "tabList") refreshList();
   if(id === "tabPareto") refreshPareto();
   if(id !== "tabForm") closeCamera();
@@ -1347,8 +1348,8 @@ function paretoEntries(){
 function motivosPareto(list){
   const out = [];
   list.forEach(e=>{
-    if(e.motivo)  out.push({ ...e, motivo: e.motivo });
-    if(e.motivo2) out.push({ ...e, motivo: e.motivo2 });
+    if(e.motivo)  out.push({ ...e, motivo: e.motivo,  piezas: Number(e.cant1) || 0 });
+    if(e.motivo2) out.push({ ...e, motivo: e.motivo2, piezas: Number(e.cant2) || 0 });
   });
   return out;
 }
@@ -1359,6 +1360,15 @@ function countBy(list, keyFn){
   return [...m.entries()].map(([label, n]) => ({ label, n }))
     .sort((a,b)=> b.n - a.n || a.label.localeCompare(b.label));
 }
+
+/** Suma de piezas por defecto (ignora los que no tienen nº de piezas) */
+function sumPiezas(list){
+  const m = new Map();
+  list.forEach(x=>{ if(x.motivo && x.piezas > 0) m.set(x.motivo, (m.get(x.motivo) || 0) + x.piezas); });
+  return [...m.entries()].map(([label, n]) => ({ label, n }))
+    .sort((a,b)=> b.n - a.n || a.label.localeCompare(b.label));
+}
+const totalPiezas = rows => rows.reduce((a, r) => a + r.n, 0);
 
 /** Gráfico Pareto en SVG: barras (nº) + línea de % acumulado sobre el total */
 function paretoSVG(rows, total, W = 420){
@@ -1414,9 +1424,10 @@ function paretoSVG(rows, total, W = 420){
 function renderPareto(){
   const list = paretoEntries();
   const conMotivo = motivosPareto(list);
-  $("paretoTotal").textContent = `${list.length} ${list.length===1 ? "incidencia" : "incidencias"} en el periodo.`;
+  $("paretoTotal").textContent = `${list.length} ${list.length===1 ? "incidencia" : "incidencias"} en el periodo · ${totalPiezas(sumPiezas(conMotivo))} piezas con defecto.`;
 
-  $("paretoMotivos").innerHTML = paretoSVG(countBy(conMotivo, e => e.motivo).slice(0,5), conMotivo.length);
+  const defectos = sumPiezas(conMotivo);
+  $("paretoMotivos").innerHTML = paretoSVG(defectos.slice(0,5), totalPiezas(defectos));
 
   const refs = countBy(list, refKey);
   $("paretoRefs").innerHTML = paretoSVG(refs.slice(0,5), list.length);
@@ -1435,8 +1446,9 @@ function renderPareto(){
 function renderParetoRef(){
   const ref = $("pRefSel").value;
   const del = motivosPareto(paretoEntries().filter(e => refKey(e) === ref));
+  const dd = sumPiezas(del);
   $("paretoRefMotivos").innerHTML = ref
-    ? paretoSVG(countBy(del, e => e.motivo).slice(0,5), del.length, 860)
+    ? paretoSVG(dd.slice(0,5), totalPiezas(dd), 860)
     : `<div class="chartEmpty">Sin datos en este periodo.</div>`;
 }
 
@@ -1472,6 +1484,29 @@ function applyConfig(cfg){
 /** ==========================
  *  INICIO
  *  ========================== */
+/** Recarga las listas (motivos, técnicos, máquinas) sin perder lo que ya has elegido */
+let cfgLoading = false;
+async function reloadConfig(){
+  if(cfgLoading) return;
+  cfgLoading = true;
+  try{
+    const keep = {};
+    ["nombre","maquina","referencia","motivo","motivo2"].forEach(id => keep[id] = $(id).value);
+    const fMaq = $("fMaquina").value;
+    const cfg = await api("getConfig");
+    applyConfig(cfg);
+    ["nombre","maquina","motivo","motivo2"].forEach(id => { $(id).value = keep[id]; });
+    if($("maquina").value){
+      const refs = DATA.referenciasPorMaquina[$("maquina").value] || [];
+      fillSelect($("referencia"), refs, "Selecciona referencia...");
+      $("referencia").value = keep.referencia;
+    }
+    $("fMaquina").value = fMaq;
+  }catch(e){ /* silencioso: se queda con las listas que ya había */ }
+  finally{ cfgLoading = false; }
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") reloadConfig(); });
+
 function setToday(){ $("fecha").value = ymdNow(); }
 
 async function init(){
